@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  # 1. Сервис Базы Данных (PostgreSQL)
+  db:
+    image: postgres:16-alpine # Используем свежую и легковесную версию
+    hostname: db # Имя хоста для контейнеров (внутри Docker сети)
+    container_name: alpha_postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: alpha_db # 👈 Должно совпадать с .env
+      POSTGRES_USER: alpha_user # 👈 Должно совпадать с .env
+      POSTGRES_PASSWORD: alpha_password # 👈 Должно совпадать с .env
+      TZ: Europe/Moscow
+    ports:
+      - "5432:5432" # Проброс порта на твой localhost (критично!)
+    restart: unless-stopped
+
+  # 2. Сервис Брокера Сообщений (Redis)
+  redis:
+    image: redis:7-alpine # Используем стабильную и легковесную версию
+    hostname: redis
+    container_name: alpha_redis
+    ports:
+      - "6379:6379" # Проброс порта для Celery
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

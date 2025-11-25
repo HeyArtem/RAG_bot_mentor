@@ -1,0 +1,28 @@
+# === Django Core ===
+django>=5.1
+djangorestframework
+django-filter
+django-cors-headers
+
+# === Database ===
+psycopg2-binary       # Драйвер для PostgreSQL
+pgvector              # Работа с векторным поиском
+
+# === Async Tasks ===
+celery
+redis
+django-celery-results # Хранение результатов задач в БД
+
+# === AI & RAG ===
+openai>=1.0.0         # Официальная библиотека OpenAI
+langchain             # "Клей" для RAG
+langchain-openai      # Интеграция LangChain + OpenAI
+langchain-community   # Доп. инструменты (загрузчики файлов и т.д.)
+tiktoken              # Для подсчета токенов (нужен для OpenAI)
+
+# === Telegram Bot ===
+aiogram>=3.0          # Асинхронная библиотека для бота
+
+# === Utilities ===
+python-dotenv         # Чтение .env файла
+requests              # Для простых HTTP запросов
