@@ -18,6 +18,7 @@ openai>=1.0.0         # Официальная библиотека OpenAI
 langchain             # "Клей" для RAG
 langchain-openai      # Интеграция LangChain + OpenAI
 langchain-community   # Доп. инструменты (загрузчики файлов и т.д.)
+langchain-text-splitters    # сплиттеры текста
 tiktoken              # Для подсчета токенов (нужен для OpenAI)
 
 # === Telegram Bot ===
