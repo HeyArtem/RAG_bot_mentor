@@ -1,8 +1,47 @@
 from django.contrib import admin
 
-from .models import Chunk, Document, Question, TestResult, UploadedFile, UserProgress
+from .models import (
+    Chunk,
+    Document,
+    Question,
+    TelegramUser,
+    TestResult,
+    UploadedFile,
+    UserProgress,
+)
 
-# from .tasks import process_document
+
+@admin.register(TelegramUser)
+class TelegramUserAdmin(admin.ModelAdmin):
+    # ⚡️ Список полей, которые будут видны в таблице
+    list_display = (
+        "telegram_id",
+        "username",
+        "full_name",
+        "role",
+        "is_approved",
+        "is_admin",
+        "created_at",
+    )
+    # ⚡️ Фильтры справа
+    list_filter = ("role", "is_approved", "is_admin")
+    # ⚡️ Поиск по имени и ID
+    search_fields = ("full_name", "telegram_id", "username")
+
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "title",
+        "category",
+        "uploaded_file",
+        "is_active",
+        "created_at",
+        "version",
+    )
+    list_filter = ("category", "is_active")
+    search_fields = ("title",)
 
 
 @admin.register(UploadedFile)
@@ -13,13 +52,6 @@ class UploadedFileAdmin(admin.ModelAdmin):
         "uploaded_at",
     )
     search_fields = ("file",)
-
-
-@admin.register(Document)
-class DocumentAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "category", "uploaded_file", "created_at")
-    list_filter = ("category",)  # Фильтр справа (Меню/Бар/Стандарты)
-    search_fields = ("title",)
 
 
 @admin.register(Chunk)

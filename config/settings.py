@@ -11,17 +11,8 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG") == "True"
 ALLOWED_HOSTS = ["*"]  # Пока разрешаем всем (для тестов)
 
-# ProxyAPI
-URL_API = os.getenv("URL_API")
-MODEL_EMBEDDING = os.getenv("MODEL_EMBEDDING")
-KEY_EMBEDDING = os.getenv("KEY_EMBEDDING")
-MODEL_COMPLETION = os.getenv("MODEL_COMPLETION")
-KEY_COMPLETION = os.getenv("KEY_COMPLETION")
-
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Application definition
 INSTALLED_APPS = [
@@ -79,7 +70,6 @@ DATABASES = {
     }
 }
 
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -95,7 +85,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 LANGUAGE_CODE = "ru-ru"
 
 TIME_ZONE = "Europe/Moscow"
@@ -105,16 +94,9 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
 STATIC_URL = "static/"
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
 
 # ==============================
 # 🚀 CELERY & REDIS SETTINGS (Настраиваем асинхронность)
@@ -125,3 +107,19 @@ CELERY_RESULT_BACKEND = "django-db"  # Результаты храним в ба
 CELERY_ACCEPT_CONTENT = ["application/json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE")  # Временная зона
+
+# ==============================
+# 🤖 AI & PROXY SETTINGS
+# ==============================
+OPENAI_API_BASE = os.getenv("URL_API")  # Наш прокси-адрес
+AI_EMBEDDING_KEY = os.getenv("KEY_EMBEDDING")
+AI_EMBEDDING_MODEL = os.getenv("MODEL_EMBEDDING")
+
+AI_COMPLETION_KEY = os.getenv("KEY_COMPLETION")
+AI_COMPLETION_MODEL = os.getenv("MODEL_COMPLETION")
+
+TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Временно
+MANAGER_TELEGRAM_ID = os.getenv("MANAGER_TELEGRAM_ID")
