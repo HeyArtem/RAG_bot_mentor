@@ -118,7 +118,7 @@ def process_document(document_id: int):
 # Теперь он будет делать вектор для вопроса!
 
 
-def search_relevant_chunks(query: str, category: str, top_k: int = 15) -> List[Chunk]:
+def search_relevant_chunks(query: str, category: str, top_k: int = 12) -> List[Chunk]:
     """
     Находит наиболее релевантные чанки (куски текста) в базе данных
     по заданному текстовому запросу.
@@ -153,8 +153,61 @@ def search_relevant_chunks(query: str, category: str, top_k: int = 15) -> List[C
         .order_by("distance")[:top_k]  # Сортируем: чем меньше расстояние, тем лучше
     )  # Ограничиваем количество результатов (по умолчанию 5)
 
-    print(f"🔎 Найдено {len(relevant_chunks)} релевантных чанков.")
+    print(f"🔎 Найдено {len(relevant_chunks)} релевантных чанков.\n")
+
+    # Эксперементально выввожу чанки после промпта с json
+    # print(f"Чанки для ответа {[c.chunk_text for c in relevant_chunks]}\n")
+    # formatted_chanks: str = "\n\n\n".join((f"{n}. {c.chunk_text}" for n, c in enumerate(relevant_chunks, start=1)))
+    # print(f"Чанки для ответа {formatted_chanks}")
+
     return list(relevant_chunks)
+
+
+# def generate_answer(query: str, context: List[Chunk]) -> str:
+#     """
+#     Генерирует финальный ответ, используя вопрос пользователя и найденный контекст.
+#     """
+#     # 1. Создаем клиент для генерации
+#     # Используем настройки для ProxyAPI и модели GPT-4.1-nano
+#     client = OpenAI(
+#         base_url=settings.OPENAI_API_BASE, api_key=settings.AI_COMPLETION_KEY
+#     )
+#
+#     # 2. Собираем контекст в одну строку
+#     if not context:
+#         return (
+#             "Извините, я не нашел информации, которая могла бы ответить на ваш вопрос."
+#         )
+#
+#
+#
+#     # Склеиваем тексты чанков, добавляя нумерацию
+#     context_text = ''
+#     for idx, c in enumerate(context):
+#         context_text += f"\n{idx}) {c.chunk_text}\n"
+#
+#     # context_text = "\n---\n".join([c.chunk_text for c in context])
+#
+#
+#     # 3. Формируем промт (Prompt) - инструкция для LLM
+#     user_prompt = f"Контекст:\n{context_text}\n\nВопрос пользователя: {query}"
+#
+#     # 4. Отправляем запрос в LLM
+#     print("🧠 Отправляем запрос LLM для генерации ответа...")
+#     try:
+#         response = client.chat.completions.create(
+#             model=settings.AI_COMPLETION_MODEL,
+#             messages=[
+#                 {"role": "system", "content": system_prompt},
+#                 {"role": "user", "content": user_prompt},
+#             ],
+#             temperature=0.1,  # 👈 Это сделает его максимально точным и лишит фантазии
+#         )
+#         return response.choices[0].message.content
+#
+#     except Exception as e:
+#         print(f"🔥 Ошибка при запросе к модели GPT: {e}")
+#         return "Извините, произошла ошибка связи с генеративной моделью."
 
 
 def generate_answer(query: str, context: List[Chunk]) -> str:
@@ -174,7 +227,9 @@ def generate_answer(query: str, context: List[Chunk]) -> str:
         )
 
     # Склеиваем тексты чанков, добавляя нумерацию
-    context_text = "\n---\n".join([c.chunk_text for c in context])
+    context_text = ""
+    for idx, c in enumerate(context):
+        context_text += f"\n{idx}) {c.chunk_text}\n"
 
     # 3. Формируем промт (Prompt) - инструкция для LLM
     user_prompt = f"Контекст:\n{context_text}\n\nВопрос пользователя: {query}"
@@ -190,7 +245,24 @@ def generate_answer(query: str, context: List[Chunk]) -> str:
             ],
             temperature=0,  # 👈 Это сделает его максимально точным и лишит фантазии
         )
-        return response.choices[0].message.content
+        # Хочу увидеть ответ нейронки
+        show_answer = [i for i in response]
+        print(f"♻️ Ответ нейронки:\n\n{show_answer}")
+
+        # Эксперементально промпта с json
+        list_str_chunks = (
+            response.choices[0]
+            .message.content.replace("[", "")
+            .replace("]", "")
+            .split(", ")
+        )
+        list_int_chunks = [int(i) for i in list_str_chunks]
+
+        answer = ""
+        for i in list_int_chunks:
+            answer += "\n\n" + context[i].chunk_text
+
+        return answer
 
     except Exception as e:
         print(f"🔥 Ошибка при запросе к модели GPT: {e}")

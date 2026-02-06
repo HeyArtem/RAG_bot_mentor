@@ -22,15 +22,18 @@ async def send_smart_answer(message: types.Message, text: str):
     """
     Разрезает длинный ответ от LLM на части по 4000 символов,
     чтобы Telegram не выдавал ошибку 'message is too long'.
+    parse_mode="Markdown"-что бы видел MD, меняю на html-тг ругается
     """
     MAX_LENGTH = 4000
     if len(text) <= MAX_LENGTH:
-        await message.answer(text)  # Если текст короткий, отправляем как обычно
+        await message.answer(
+            text, parse_mode="HTML"
+        )  # Если текст короткий, отправляем как обычно
     else:
         # Если текст длинный, режем его на куски
         for i in range(0, len(text), MAX_LENGTH):
             chunk = text[i : i + MAX_LENGTH]
-            await message.answer(chunk)
+            await message.answer(chunk, parse_mode="HTML")
 
 
 @router.message(F.text)
