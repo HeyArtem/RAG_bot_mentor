@@ -23,11 +23,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # Сторонние библиотеки
-    "rest_framework",
     "django_celery_results",  # Чтобы видеть результаты задач Celery
     "pgvector.django",
+    "django.contrib.postgres",  # Поиск с учетом опечаток (pg_trgm)
     # Наши приложения
-    "bot_mentor",  # Создам его на следующем шаге
+    "bot_mentor",
 ]
 
 MIDDLEWARE = [
@@ -85,16 +85,30 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+
+MEDIA_URL = "/media/"
+# MEDIA_URL
+# URL-префикс для доступа к пользовательским загруженным файлам
+
+MEDIA_ROOT = BASE_DIR / "media"
+# MEDIA_ROOT
+# путь на диске, куда Django будет сохранять загруженные файлы
+
+STATIC_URL = "/static/"
+# STATIC_URL
+# URL-префикс для статики
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
+# STATIC_ROOT
+# папка, куда collectstatic соберет всю статику для prod/Gunicorn/Nginx
+
 LANGUAGE_CODE = "ru-ru"
-
 TIME_ZONE = "Europe/Moscow"
-
 USE_I18N = True
-
 USE_TZ = True
 
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -102,12 +116,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # 🚀 CELERY & REDIS SETTINGS (Настраиваем асинхронность)
 # ==============================
 # Адрес Redis (брокер сообщений)
-CELERY_BROKER_URL = "redis://localhost:6379/0"  # Адрес нашего Redis
+# CELERY_BROKER_URL = "redis://localhost:6379/0"  # Адрес нашего Redis в режиме debug
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+# CELERY_BROKER_URL из env, а если env нет — локальная разработка через localhost
 CELERY_RESULT_BACKEND = "django-db"  # Результаты храним в базе Django
 CELERY_ACCEPT_CONTENT = ["application/json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE")  # Временная зона
+CELERY_TIMEZONE = TIME_ZONE  # Celery живет в том же часовом поясе, что и Django
 
 # ==============================
 # 🤖 AI & PROXY SETTINGS
@@ -116,10 +132,18 @@ OPENAI_API_BASE = os.getenv("URL_API")  # Наш прокси-адрес
 AI_EMBEDDING_KEY = os.getenv("KEY_EMBEDDING")
 AI_EMBEDDING_MODEL = os.getenv("MODEL_EMBEDDING")
 
-AI_COMPLETION_KEY = os.getenv("KEY_COMPLETION")
-AI_COMPLETION_MODEL = os.getenv("MODEL_COMPLETION")
+# AI_EMBEDDING_KEY = print("🧬 Обращение к модели эмбедингов")
+# AI_EMBEDDING_MODEL = 0
+
+# AI_COMPLETION_KEY = os.getenv("KEY_COMPLETION")
+# AI_COMPLETION_MODEL = os.getenv("MODEL_COMPLETION")
+
 
 TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Временно
 MANAGER_TELEGRAM_ID = os.getenv("MANAGER_TELEGRAM_ID")
+
+# Подключаю proxy для работы телеграмма, т.к. глцшат (работает только при вкл hiddify)
+TELEGRAM_PROXY_URL = os.getenv("TELEGRAM_PROXY_URL", "")
+TELEGRAM_PROXY_ENABLED = os.getenv("TELEGRAM_PROXY_ENABLED", "False") == "True"

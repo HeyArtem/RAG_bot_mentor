@@ -47,28 +47,31 @@ async def cmd_start(message: types.Message, state: FSMContext):
 async def cmd_help(message: types.Message):
     await message.answer(
         "📖 **Справка по боту:**\n\n"
-        "1. Просто пиши вопросы по меню (например: 'что входит в сет Юрьев-Польский?').\n"
-        "2. Если ты менеджер — ты будешь получать уведомления о новых стажерах.\n"
+        "1. Просто пиши ключевое слово (например: 'ДЕГУСТАЦИОННЫЙ' или 'вишн' или 'Борисоглебск').\n"
+        "2. Если ты менеджер — ты будешь получать уведомления о новых пользователях.\n"
         "3. `/start` — перезагрузить бота."
     )
 
 
 @router.message(RegState.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
-    full_name = message.text
+    full_name = message.text.strip()
     user_id = message.from_user.id
 
-    # # Создаем юзера в БД
-    # new_user = await sync_to_async(TelegramUser.objects.create)(
-    #     telegram_id=user_id,
-    #     username=message.from_user.username,
-    #     full_name=full_name,
-    #     role="trainee",
-    # )
+    # Создаем юзера в БД
+    user, created = await sync_to_async(TelegramUser.objects.update_or_create)(
+        telegram_id=user_id,
+        defaults={
+            "username": message.from_user.username,
+            "full_name": full_name,
+            "role": "trainee",
+            "is_approved": False,  # Явно ставим False при регистрации
+        },
+    )
 
     await message.answer("Заявка отправлена менеджеру! Жди уведомления. ⏳")
 
-    # ⚡️ МАГИЯ: Отправляем сообщение менеджеру
+    # ⚡️ Отправляем сообщение менеджеру
     if settings.MANAGER_TELEGRAM_ID:
         try:
             await message.bot.send_message(

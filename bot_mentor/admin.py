@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
 from .models import (
     Chunk,
@@ -42,6 +43,7 @@ class DocumentAdmin(admin.ModelAdmin):
     )
     list_filter = ("category", "is_active")
     search_fields = ("title",)
+    readonly_fields = ("created_at", "version")
 
 
 @admin.register(UploadedFile)
@@ -49,9 +51,19 @@ class UploadedFileAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "file_name",
+        "file_link",
         "uploaded_at",
     )
     search_fields = ("file",)
+
+    def file_link(self, obj):
+        if obj.file:
+            return format_html(
+                '<a href="{}" target="_blank">Открыть файл</a>', obj.file.url
+            )
+        return "Нет файла"
+
+    file_link.short_description = "Ссылка"
 
 
 @admin.register(Chunk)

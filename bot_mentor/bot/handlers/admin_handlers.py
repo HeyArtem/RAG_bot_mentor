@@ -16,6 +16,10 @@ async def approve_user(callback: types.CallbackQuery):
     """
     Менеджер одобрил заявку
     """
+
+    # Обязательно отвечаем на callback, чтобы убрать "часики" на кнопке в ТГ
+    await callback.answer()
+
     # Достаем ID из callback_data (например, "approve_12345" -> 12345)
     target_user_id = int(callback.data.split("_")[1])
 
@@ -38,9 +42,11 @@ async def approve_user(callback: types.CallbackQuery):
             chat_id=target_user_id,
             text="🎉 Ура! Менеджер одобрил твою заявку. Теперь ты можешь задавать вопросы по меню!",
         )
-
-    # Обязательно отвечаем на callback, чтобы убрать "часики" на кнопке в ТГ
-    await callback.answer()
+    else:
+        # Если вдруг юзера нет в базе (как сейчас)
+        await callback.message.answer(
+            f"❌ Ошибка: Юзер с ID {target_user_id} не найден в базе!"
+        )
 
 
 @router.callback_query(F.data.startswith("decline_"))

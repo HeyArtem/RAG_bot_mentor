@@ -88,7 +88,7 @@ class Document(models.Model):
         Золотое правило Celery в Django:
         никогда не импортируй задачи (из tasks.py)
         на верхнем уровне в models.py.
-        Что бы не бвло circular import, импорт клaду сюда
+        Что бы не бвыло circular import, импорт клaду сюда
         """
         from bot_mentor.tasks import process_document
 
@@ -131,9 +131,15 @@ class Chunk(models.Model):
 
     chunk_text = models.TextField(verbose_name="Текст чанка")
 
+    # embedding = VectorField(
+    #     verbose_name="Вектор эмбеддинга",
+    #     dimensions=1536,  # под OpenAI text-embedding-3-small
+    # )
+
+    # Эксперименты
     embedding = VectorField(
         verbose_name="Вектор эмбеддинга",
-        dimensions=1536,  # под OpenAI text-embedding-3-small
+        dimensions=3072,  # под OpenAI text-embedding-3-large
     )
 
     def __str__(self):
@@ -191,9 +197,15 @@ class Question(models.Model):
     )
     question_text = models.TextField(verbose_name="Текст вопроса")
     answer_text = models.TextField(verbose_name="Ответ системы", null=True, blank=True)
+    # embedding = VectorField(
+    #     dimensions=1536, verbose_name="Вектор вопроса", null=True, blank=True
+    # )
+
+    # Эксперим
     embedding = VectorField(
-        dimensions=1536, verbose_name="Вектор вопроса", null=True, blank=True
+        dimensions=3072, verbose_name="Вектор вопроса", null=True, blank=True
     )
+
     document_category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,

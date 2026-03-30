@@ -3,15 +3,12 @@ import logging
 from aiogram import F, Router, types
 from asgiref.sync import sync_to_async
 
-from bot_mentor.models import TelegramUser
-from bot_mentor.services.embedding_service import (
-    generate_answer,
-    search_relevant_chunks,
-)
+from bot_mentor.models import Question
+from bot_mentor.services.embedding_service import search_relevant_chunks
 
 """
 «повседневная» логика.
-RAG-поиск, ответы на вопросы про меню и прочее.
+поиск, ответы на вопросы про меню и прочее.
 То, что доступно уже одобренным пользователям.
 """
 
@@ -20,64 +17,137 @@ router = Router()
 
 async def send_smart_answer(message: types.Message, text: str):
     """
-    Разрезает длинный ответ от LLM на части по 4000 символов,
+    Разрезает длинный ответ на части по 4000 символов,
     чтобы Telegram не выдавал ошибку 'message is too long'.
     parse_mode="Markdown"-что бы видел MD, меняю на html-тг ругается
+    стараясь не ломать структуру HTML
     """
+
+    print("🧬 режу чанки")
+
     MAX_LENGTH = 4000
+    separator = "\n\n─────────────────────\n\n"
+
     if len(text) <= MAX_LENGTH:
-        await message.answer(
-            text, parse_mode="HTML"
-        )  # Если текст короткий, отправляем как обычно
-    else:
-        # Если текст длинный, режем его на куски
-        for i in range(0, len(text), MAX_LENGTH):
-            chunk = text[i : i + MAX_LENGTH]
-            await message.answer(chunk, parse_mode="HTML")
+        await message.answer(text, parse_mode="HTML")
+        return
+
+    remaining_text = text
+
+    while len(remaining_text) > MAX_LENGTH:
+        # Ищем последний separator в первом MAX_LENGTH куске
+        split_pos = remaining_text.rfind(separator, 0, MAX_LENGTH)
+
+        # Если разделитель "\n\n──────\n\n"не найден.
+        if split_pos == -1:
+            # Тогда ищем запасной вариант: последний перенос строки.
+            split_pos = remaining_text.rfind("\n", 0, MAX_LENGTH)
+
+        # Если даже перевод строки не найден.
+        if split_pos == -1:
+            # Тогда режем грубо по длине.
+            split_pos = MAX_LENGTH
+
+        # Берём кусок текста от начала до split_pos
+        chunk = remaining_text[:split_pos]
+
+        # Если кусок пустышка, режем по длине
+        if not chunk.strip():
+            chunk = remaining_text[:MAX_LENGTH]
+            split_pos = MAX_LENGTH
+
+        # Отправляем найденный кусок пользователю.
+        await message.answer(chunk, parse_mode="HTML")
+
+        # Отрезаем уже отправленную часть и оставляем только хвост.
+        remaining_text = remaining_text[split_pos:]
+
+        # Проверяем: а не начинается ли оставшийся текст с нашего разделителя
+        if remaining_text.startswith(separator):
+            # Если начинается с разделителя — убираем его целиком, чтобы следующее сообщение не стартовало с одной голой линии.
+            remaining_text = remaining_text[len(separator) :]
+        else:
+            remaining_text = remaining_text.lstrip("\n")
+
+    if remaining_text.strip():
+        await message.answer(remaining_text, parse_mode="HTML")
+
+    # print("🧬 режу чанки")
+    # MAX_LENGTH = 4000
+    #
+    # if len(text) <= MAX_LENGTH:
+    #     await message.answer(
+    #         text, parse_mode="HTML"
+    #     )  # Если текст короткий, отправляем как обычно
+    #
+    # else:
+    #     # Если текст длинный, режем его на куски
+    #     for i in range(0, len(text), MAX_LENGTH):
+    #         chunk = text[i: i + MAX_LENGTH]
+    #         await message.answer(chunk, parse_mode="HTML")
 
 
 @router.message(F.text)
 async def handle_rag_question(message: types.Message):
-    # 1. ⚡️ Проверка доступа (Middleware на минималках)
-    user = await sync_to_async(
-        TelegramUser.objects.filter(telegram_id=message.from_user.id).first
-    )()
+    """
+    Принимаем запросы пользователя, ищем релевантные чанки,
+    формируем ответ и логируем вопрос в БД.
+    Выводим в ТГ-бота
+    """
 
-    if not user or not user.is_approved:
-        await message.answer(
-            "У тебя пока нет доступа к базе знаний. Обратись к менеджеру. 🛑"
-        )
-        return
+    query = message.text.strip()
+    user_id = message.from_user.id
 
-    # 2. Магия RAG
     # Отправляем статус "печатает...", чтобы юзер не нервничал
     await message.bot.send_chat_action(message.chat.id, action="typing")
 
     try:
-        # Ищем куски текста, похожие на вопрос
-        # Мы вызываем синхронные функции через sync_to_async
-        # chunks = await sync_to_async(search_relevant_chunks)(query=message.text)
-
-        # 👽это временно, пока тестирую систему только с менд кухни
-        chunks = await sync_to_async(search_relevant_chunks)(
-            query=message.text,
-            category="menu",  # 👈 Добавляем категорию (она должна совпадать с тем, что в админке)
-        )
+        # Вызываем наш "умный" поиск (Type 1 -> Type 2)
+        chunks = await sync_to_async(search_relevant_chunks)(query=query)
 
         if not chunks:
-            await message.answer(
-                "К сожалению, в меню пока нет информации по этому вопросу. 🧐"
+            not_found_text = "К сожалению, ничего не нашлось. Попробуй другое слово! 🧐"
+
+            await sync_to_async(Question.objects.create)(
+                user_id=user_id,
+                question_text=query,
+                answer_text=not_found_text,
             )
+
+            await message.answer(not_found_text)
             return
 
-        # Генерируем ответ на основе найденных кусков
-        answer = await sync_to_async(generate_answer)(
-            query=message.text, context=chunks
+        # ПРЕОБРАЗОВАНИЕ: Список объектов -> Одна строка текста
+        # Мы берем chunk_text из каждого объекта и соединяем их через разделитель
+        print("🧬 Началось преобразование")
+
+        formatted_response = "\n\n─────────────────────\n\n".join(
+            [c.chunk_text for c in chunks]
         )
 
-        # Режем на кусочки сообщение-ответ, что бы тг не падал
-        await send_smart_answer(message, answer)
+        print(f"\n 🧬После преобразования: \n{formatted_response}\n")
+
+        # Сначала логируем
+        await sync_to_async(Question.objects.create)(
+            user_id=user_id,
+            question_text=query,
+            answer_text=formatted_response,
+        )
+
+        # Отправляем пользователю, полученные чанки режу на куски для ответа
+        await send_smart_answer(message, formatted_response)
 
     except Exception as e:
-        logging.error(f"Ошибка RAG: {e}")
-        await message.answer("Произошла ошибка при поиске ответа. Попробуй позже.")
+        error_text = "🧬 Что-то пошло не так при поиске. 🛠"
+        logging.error(f"❌ Ошибка в хэндлере: {e}")
+
+        try:
+            await sync_to_async(Question.objects.create)(
+                user_id=user_id,
+                question_text=query,
+                answer_text=f"ERROR: {str(e)}",
+            )
+        except Exception as log_error:
+            logging.error(f"❌ Не удалось записать лог Question: {log_error}")
+
+        await message.answer(error_text)

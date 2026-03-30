@@ -1,30 +1,151 @@
-version: '3.8'
-
 services:
-  # 1. Сервис Базы Данных (PostgreSQL)
   db:
-    image: postgres:16-alpine # Используем свежую и легковесную версию
-    hostname: db # Имя хоста для контейнеров (внутри Docker сети)
-    container_name: alpha_postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    environment:
-      POSTGRES_DB: alpha_db # 👈 Должно совпадать с .env
-      POSTGRES_USER: alpha_user # 👈 Должно совпадать с .env
-      POSTGRES_PASSWORD: alpha_password # 👈 Должно совпадать с .env
-      TZ: Europe/Moscow
-    ports:
-      - "5432:5432" # Проброс порта на твой localhost (критично!)
+    # PostgreSQL с уже встроенным pgvector
+    image: pgvector/pgvector:pg16
+
+    # Перезапускать контейнер, если он упал
     restart: unless-stopped
 
-  # 2. Сервис Брокера Сообщений (Redis)
-  redis:
-    image: redis:7-alpine # Используем стабильную и легковесную версию
-    hostname: redis
-    container_name: alpha_redis
+    environment:
+      # Имя базы данных
+      POSTGRES_DB: ${DB_NAME}
+      # Пользователь PostgreSQL
+      POSTGRES_USER: ${DB_USER}
+      # Пароль PostgreSQL
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Часовой пояс контейнера
+      TZ: Europe/Moscow
+
+    volumes:
+      # Постоянное хранение данных PostgreSQL
+      - postgres_data:/var/lib/postgresql/data
+
+      # SQL-файлы, которые выполнятся при первом создании базы
+      # Здесь мы включаем расширение vector
+      - ./docker/db/init:/docker-entrypoint-initdb.d
+
     ports:
-      - "6379:6379" # Проброс порта для Celery
+      # Пробрасываем порт PostgreSQL на хост
+      - "5432:5432"
+
+  redis:
+    # Лёгкий образ Redis
+    image: redis:7-alpine
+
     restart: unless-stopped
+
+    ports:
+      # Порт Redis на хосте
+      - "6379:6379"
+
+  web:
+    # Собираем образ из Dockerfile в корне проекта
+    build: .
+
+    restart: unless-stopped
+
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py collectstatic --noinput &&
+      gunicorn config.wsgi:application --bind 0.0.0.0:8000
+      "
+      # применить миграции
+      # собрать статику Django в STATIC_ROOT
+      # --noinput = не задавать интерактивных вопросов
+      # запустить Django через Gunicorn
+
+    volumes:
+      # Монтируем весь проект внутрь контейнера
+      - .:/app
+
+      # Отдельный volume для пользовательских файлов
+      - media_data:/app/media
+
+      # Отдельный volume для собранной статики
+      - static_data:/app/staticfiles
+
+    env_file:
+      # Подгружаем переменные из .env
+      - .env
+
+    environment:
+      # Внутри Docker база доступна по имени сервиса db
+      DB_HOST: db
+      DB_PORT: 5432
+
+      # Внутри Docker redis доступен по имени сервиса redis
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+    depends_on:
+      # web стартует после db и redis
+      - db
+      - redis
+
+    ports:
+      # Gunicorn слушает внутри контейнера 8000,
+      # пробрасываем его наружу
+      - "8000:8000"
+
+  celery:
+    # Тот же образ проекта
+    build: .
+
+    restart: unless-stopped
+
+    # Запуск Celery worker
+    command: celery -A config worker -l info
+
+    volumes:
+      # Код проекта
+      - .:/app
+
+      # Media нужны, потому что Celery читает загруженные файлы
+      - media_data:/app/media
+
+    env_file:
+      - .env
+
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+    depends_on:
+      - db
+      - redis
+
+  bot:
+    # Тот же образ проекта
+    build: .
+
+    restart: unless-stopped
+
+    # Запуск твоего Telegram-бота
+    command: python manage.py run_bot
+
+    volumes:
+      - .:/app
+      - media_data:/app/media
+
+    env_file:
+      - .env
+
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+    depends_on:
+      - db
+      - redis
 
 volumes:
+  # Данные PostgreSQL
   postgres_data:
+
+  # Пользовательские файлы (uploaded files)
+  media_data:
+
+  # Собранная статика Django
+  static_data:
