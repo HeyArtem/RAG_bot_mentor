@@ -1,7 +1,9 @@
+import logging
 import os
 
 from celery import Celery
 
+logger = logging.getLogger(__name__)
 # Устанавливаем настройки Django по умолчанию для Celery.
 # Это нужно, чтобы Celery знало, где искать наш settings.py
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
@@ -26,4 +28,4 @@ app.conf.enable_utc = False
 @app.task(bind=True)
 def debug_task(self):
     """Пример тестовой задачи, чтобы проверить, что Celery работает."""
-    print(f"Request: {self.request!r}")
+    logger.info(f"Request: {self.request!r}")

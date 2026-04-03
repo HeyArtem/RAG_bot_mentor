@@ -18,5 +18,4 @@ def process_document(document_id):
         process_document.delay(id) — Django просто кидает записку в Redis
         и говорит пользователю: «Всё ок, сохранил!», а Celery подхватывает записку и начинает работу в фоне.
     """
-    print(f"📥 Задача Celery получена: обрабатываем документ ID={document_id}")
     service_process_document(document_id)

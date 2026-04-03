@@ -132,8 +132,6 @@ OPENAI_API_BASE = os.getenv("URL_API")  # Наш прокси-адрес
 AI_EMBEDDING_KEY = os.getenv("KEY_EMBEDDING")
 AI_EMBEDDING_MODEL = os.getenv("MODEL_EMBEDDING")
 
-# AI_EMBEDDING_KEY = print("🧬 Обращение к модели эмбедингов")
-# AI_EMBEDDING_MODEL = 0
 
 # AI_COMPLETION_KEY = os.getenv("KEY_COMPLETION")
 # AI_COMPLETION_MODEL = os.getenv("MODEL_COMPLETION")

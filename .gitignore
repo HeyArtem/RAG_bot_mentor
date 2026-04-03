@@ -177,6 +177,11 @@ main3/
 data/
 
 /venv
-staticfiles
 
 celery.log
+
+media/
+uploaded_files/
+tests/response_debug.json
+docker-compose.override.yml
+staticfiles/

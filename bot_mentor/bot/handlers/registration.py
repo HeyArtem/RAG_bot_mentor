@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router, types
 from aiogram.filters import Command as CommandFilter
 from aiogram.fsm.context import FSMContext
@@ -8,6 +10,8 @@ from django.conf import settings  # ⚡️ Импортируем настрой
 from bot_mentor.bot.keyboards import get_approval_keyboard  # Импорт кнопок
 from bot_mentor.models import TelegramUser
 
+logger = logging.getLogger(__name__)
+
 """
 Содержит логику знакомства.
 Бот использует FSM (Finite State Machine — Конечный автомат),
@@ -15,6 +19,7 @@ from bot_mentor.models import TelegramUser
 """
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 class RegState(StatesGroup):
@@ -79,7 +84,7 @@ async def process_name(message: types.Message, state: FSMContext):
                 text=f"🚀 Новая заявка на обучение!\nИмя: {full_name}\nID: {user_id}",
                 reply_markup=get_approval_keyboard(user_id),  # Цепляем кнопки
             )
-        except Exception as e:
-            print(f"Ошибка отправки менеджеру: {e}")
+        except Exception:
+            logger.exception("Ошибка отправки менеджеру")
 
     await state.clear()

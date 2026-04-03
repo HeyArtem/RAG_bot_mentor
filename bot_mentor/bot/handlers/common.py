@@ -23,8 +23,6 @@ async def send_smart_answer(message: types.Message, text: str):
     стараясь не ломать структуру HTML
     """
 
-    print("🧬 режу чанки")
-
     MAX_LENGTH = 4000
     separator = "\n\n─────────────────────\n\n"
 
@@ -72,20 +70,6 @@ async def send_smart_answer(message: types.Message, text: str):
     if remaining_text.strip():
         await message.answer(remaining_text, parse_mode="HTML")
 
-    # print("🧬 режу чанки")
-    # MAX_LENGTH = 4000
-    #
-    # if len(text) <= MAX_LENGTH:
-    #     await message.answer(
-    #         text, parse_mode="HTML"
-    #     )  # Если текст короткий, отправляем как обычно
-    #
-    # else:
-    #     # Если текст длинный, режем его на куски
-    #     for i in range(0, len(text), MAX_LENGTH):
-    #         chunk = text[i: i + MAX_LENGTH]
-    #         await message.answer(chunk, parse_mode="HTML")
-
 
 @router.message(F.text)
 async def handle_rag_question(message: types.Message):
@@ -119,13 +103,10 @@ async def handle_rag_question(message: types.Message):
 
         # ПРЕОБРАЗОВАНИЕ: Список объектов -> Одна строка текста
         # Мы берем chunk_text из каждого объекта и соединяем их через разделитель
-        print("🧬 Началось преобразование")
 
         formatted_response = "\n\n─────────────────────\n\n".join(
             [c.chunk_text for c in chunks]
         )
-
-        print(f"\n 🧬После преобразования: \n{formatted_response}\n")
 
         # Сначала логируем
         await sync_to_async(Question.objects.create)(

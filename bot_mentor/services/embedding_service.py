@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List
 
@@ -19,6 +20,9 @@ from bot_mentor.prompts import system_prompt
 -def generate_answer [! ОТКЛЮЧЕНА]  - отправка вопроса и релевантных кусков текста
     в модель "gpt-4.1-nano" получает ответ
 """
+
+logger = logging.getLogger(__name__)
+
 
 embedding_model = OpenAIEmbeddings(
     model=settings.AI_EMBEDDING_MODEL,  # 'text-embedding-3-large'
@@ -48,11 +52,8 @@ def process_document(document_id: int):
         # (doc.uploaded_file — это связь, .file — это поле, .path — это путь на диске)
         file_path = doc.uploaded_file.file.path
 
-        print(f"🚀 [Start] Обработка документа: {doc.title}")
-
         # 3. Проверка расширения
         if not file_path.endswith(".txt"):
-            print(f"❌ Ошибка: Файл {doc.uploaded_file.file_name} не .txt. Пропускаем.")
             return
 
         # 4. Читаем файл
@@ -60,12 +61,11 @@ def process_document(document_id: int):
             source_text = f.read()
 
         if not source_text:
-            print("⚠️ Файл пустой!")
+            logger.warning("⚠️ Файл пустой!")
             return
 
         # 5. Нарезка на чанки (Chunking) по ^
         raw_chunks = [chunk for chunk in source_text.split("^") if chunk]
-        print(f"🔪 Разрезали текст на {len(raw_chunks)} чанков.")
 
         # 6. Добавляем контекстную шапку и HTML-оформление (📖кух|menu)
         header = f"<i>📖 {doc.title} | {doc.category}</i>\n\n"
@@ -89,13 +89,12 @@ def process_document(document_id: int):
             chunks_with_context.append(header + formatted_text)
 
         # 7. Получаем embeddings
-        print("📡 Отправляем запрос к ProxyAPI...")
         try:
             # Отправляем именно тексты С ШАПКОЙ
             # Мы отправляем ВСЕ тексты сразу (batch). Это в 50 раз быстрее цикла.
             vectors = embedding_model.embed_documents(chunks_with_context)
-        except Exception as e:
-            print(f"🔥 Ошибка при запросе к API: {e}")
+        except Exception:
+            logger.exception("🔥 Ошибка при запросе к API")
             return
 
         # 8. Собираем новые чанки в память
@@ -118,27 +117,16 @@ def process_document(document_id: int):
         # либо ничего не изменилось.
         with transaction.atomic():
             old_chunks_qs = Chunk.objects.filter(document__category=doc.category)
-            old_chunks_count = old_chunks_qs.count()
-
-            print(
-                f"🕯️ Подготовка к экзорцизму: найдено {old_chunks_count} старых чанков "
-                f"в категории '{doc.category}'"
-            )
 
             old_chunks_qs.delete()
-            print(f"🧹 Старые чанки категории '{doc.category}' удалены.")
 
             Chunk.objects.bulk_create(chunks_to_create)
 
-        print(
-            f"✅ [Success] Сохранено {len(chunks_to_create)} новых векторов "
-            f"для категории '{doc.category}'."
-        )
-
     except Document.DoesNotExist:
-        print(f"❌ Документ с ID {document_id} не найден.")
-    except Exception as e:
-        print(f"🔥 Критическая ошибка: {e}")
+        logger.error("❌ Документ с ID {document_id} не найден.")
+
+    except Exception:
+        logger.warning("🔥 Критическая ошибка")
 
 
 def search_relevant_chunks(query: str, top_k: int = 12) -> List[Chunk]:
@@ -150,7 +138,6 @@ def search_relevant_chunks(query: str, top_k: int = 12) -> List[Chunk]:
     """
     # --- 👽 TYPE 1: Прямое вхождение ---
     try:
-        print(f"\n🧬 type 1, ищу через __icontains. Запрос: {query}\n")
 
         relevant_chunks = list(
             Chunk.objects.select_related("document")
@@ -159,23 +146,15 @@ def search_relevant_chunks(query: str, top_k: int = 12) -> List[Chunk]:
         )[:top_k]
 
         if relevant_chunks:
-
-            # 🧬 Моя контролька
-            for i in relevant_chunks:
-                print(
-                    f"🧬 index:{i.chunk_index},\n text:{(i.chunk_text)[33:210]}", "\n\n"
-                )
-
             return relevant_chunks
-    except Exception as ex:
-        print(f"🧬 Ошибка при поиске __icontains: {ex}")
+    except Exception:
+        logger.exception("🧬 Ошибка при поиске __icontains")
 
     # --- 👽 TYPE 2: Векторный поиск (Если Type 1 ничего не нашел) ---
-    print(f"\n🧬 TYPE 1 пусто. Включаю TYPE 2 (Векторы) для '{query}'...")
     try:
         # 1. Получаем вектор для запроса
         # NOTE: embed_query используется для одного запроса, embed_documents - для списка
-        print(f"\n🧬 Превращаем запрос в вектор: '{query}'")
+
         query_vector = embedding_model.embed_query(query)
         vector_chunks = list(
             Chunk.objects.select_related("document")
@@ -190,8 +169,8 @@ def search_relevant_chunks(query: str, top_k: int = 12) -> List[Chunk]:
             ]  # Сортируем: чем меньше расстояние, тем лучше 0,67
         )
         return vector_chunks
-    except Exception as e:
-        print(f"🔥Ошибка векторизации: {e}")
+    except Exception:
+        logger.exception("🔥Ошибка векторизации запроса")
 
 
 def generate_answer(query: str, context: List[Chunk]) -> str:
@@ -216,14 +195,11 @@ def generate_answer(query: str, context: List[Chunk]) -> str:
     for idx, c in enumerate(context):
         context_text += f"\n{idx}) {c.chunk_text}\n"
 
-    # res = "\n\n".join(i for i in context_text)
-    # print(context_text)
-
     # 3. Формируем промт (Prompt) - инструкция для LLM
     user_prompt = f"Контекст:\n{context_text}\n\nВопрос пользователя: {query}"
 
     # 4. Отправляем запрос в LLM
-    print("🧠 Отправляем запрос LLM для генерации ответа...")
+
     try:
         response = client.chat.completions.create(
             model=settings.AI_COMPLETION_MODEL,
@@ -234,9 +210,6 @@ def generate_answer(query: str, context: List[Chunk]) -> str:
             temperature=0,  # 👈 Это сделает его максимально точным и лишит фантазии
             top_p=1,
         )
-        # # Хочу увидеть ответ нейронки
-        # show_answer = [i for i in response]
-        # print(f"♻️ Ответ нейронки:\n\n{show_answer}")
 
         # Эксперементально промпта с json
         list_str_chunks = (
@@ -247,19 +220,14 @@ def generate_answer(query: str, context: List[Chunk]) -> str:
         )
         list_int_chunks = [int(i) for i in list_str_chunks]
 
-        # answer = ""
-        # for i in list_int_chunks:
-        #     answer += "\n\n" + context[i].chunk_text
-
         answer = ""
-        try:
-            for i in list_int_chunks:
+        for i in list_int_chunks:
+            try:
                 answer += "\n\n" + context[i].chunk_text
-        except IndexError:
-            pass
-
+            except IndexError:
+                logger.warning(f"LLM вернула индекс вне диапазона: {i}")
         return answer
 
-    except Exception as e:
-        print(f"🔥 Ошибка при запросе к модели GPT: {e}")
-        return "Извините, произошла ошибка связи с генеративной моделью."
+    except Exception:
+        logger.exception("Ошибка при запросе к генеративной модели")
+        return "❌ Извините, произошла ошибка связи с генеративной моделью."
